@@ -75,7 +75,7 @@ db.createUser({
   "connector.class": "io.debezium.connector.mongodb.MongoDbConnector",
   "connector.displayName": "MongoDB",
   "connector.id": "mongodb",
-  "mongodb.connection.string": "mongodb://hl-ibt-mg00002a:27017/?replicaSet=rs0",
+  "mongodb.connection.string": "mongodb://mongodb_server_name:27017/?replicaSet=rs0",
   "mongodb.user": "mcp_debezium",
   "mongodb.password": "your_password",
   "collection.include.list": "inbot_invoice_data_21.InvoiceInfo,inbot_invoice_data_22.InvoiceInfo",
