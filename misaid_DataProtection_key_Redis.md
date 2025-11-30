@@ -24,8 +24,8 @@ public void ConfigureServices(IServiceCollection services)
     
     // Cấu hình DataProtection
     services.AddDataProtection()
-        .SetApplicationName("YourAppName")  // Đảm bảo tất cả instance dùng cùng tên
-        .PersistKeysToStackExchangeRedis(redis, "DataProtection-Keys");
+        .SetApplicationName("MISAID")  // Đảm bảo tất cả instance dùng cùng tên
+        .PersistKeysToStackExchangeRedis(redis, "MISAID-DataProtection-Keys");
 }
 ```
 
@@ -38,7 +38,7 @@ public void ConfigureServices(IServiceCollection services)
 {
     // Thêm DataProtection service
     var dataProtection = services.AddDataProtection()
-        .SetApplicationName("YourAppName");
+        .SetApplicationName("MISAID");
         
     // Đọc cấu hình từ appsettings.json
     var keyStorageType = Configuration["DataProtection:KeyStorageType"];
@@ -47,7 +47,7 @@ public void ConfigureServices(IServiceCollection services)
     {
         var redisConnection = Configuration["DataProtection:RedisConnection"];
         var redis = ConnectionMultiplexer.Connect(redisConnection);
-        dataProtection.PersistKeysToStackExchangeRedis(redis, "DataProtection-Keys");
+        dataProtection.PersistKeysToStackExchangeRedis(redis, "MISAID-DataProtection-Keys");
     }
     else if (keyStorageType == "FileShare") 
     {
@@ -64,7 +64,7 @@ Cấu hình tương ứng trong `appsettings.json`:
   "DataProtection": {
     "KeyStorageType": "Redis",
     "RedisConnection": "your-redis-server:6379,password=yourpassword",
-    "FileSharePath": "\\\\server\\share\\DataProtection-Keys"
+    "FileSharePath": "\\\\server\\share\\MISAID-DataProtection-Keys"
   }
 }
 ```
