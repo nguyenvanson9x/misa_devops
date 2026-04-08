@@ -1,25 +1,83 @@
-### **KẾ HOẠCH TÁCH VÀ CHUẨN HÓA CƠ SỞ DỮ LIỆU BUSINESS**
+# Kế hoạch Tách Database SQL Server
 
-#### **I. TỔNG QUAN HIỆN TRẠNG VÀ MỤC TIÊU**
+## A. Hiện Trạng
 
-| Trạng thái | Tên Database | Vị trí Máy chủ | Ghi chú / Ràng buộc |
-| :--- | :--- | :--- | :--- |
-| **Hiện tại** | `Login` | `MISAID MSSQL 04` | Đang chứa một phần dữ liệu Business. |
-| **Hiện tại** | `Token` | `MSSQL 02` | Dung lượng \~200GB (Phần lớn do bảng `PersistedGrant`). |
-| **Mục tiêu** | **`MISA.PersonalCustomerProfile.Business`** (Tạo mới) | **`MISAID MSSQL 05`** | Cụm máy chủ đích có **giới hạn Disk là 100GB**. |
+| Thành phần | Chi tiết |
+|---|---|
+| **Database Login** | Máy chủ: `MISAID MSSQL 04` |
+| **Database Token** | Máy chủ: `MSSQL 02`, dung lượng: **&gt; 200GB** |
+| **Vấn đề** | Dữ liệu Business đang rải rác ở cả 2 database trên |
 
------
+---
 
-#### **II. CHI TIẾT CÁC BƯỚC THỰC THI**
+## B. Mong Muốn
 
-| Bước | Hạng mục công việc | Môi trường / Máy chủ | Tài nguyên / Ghi chú |
-| :--- | :--- | :--- | :--- |
-| **1.1** | Backup database `Token` gốc. | `MSSQL 02` | Sinh ra file backup \~200GB. |
-| **1.2** | Restore DB `Token` vào máy chủ trung gian. | `MISA CNTT MSSQL 01` | Cần dung lượng trống đủ lớn để chứa DB phục hồi. |
-| **1.3** | Xóa dữ liệu bảng `PersistedGrant` để giảm tải. | `MISA CNTT MSSQL 01` | Dùng `TRUNCATE`/`DELETE`. *Lưu ý: Nên chạy thêm `SHRINKDATABASE` để giảm dung lượng file vật lý.* |
-| **1.4** | Backup lại DB đã được làm sạch và thu gọn. | `MISA CNTT MSSQL 01` | Bản backup này phải có dung lượng an toàn (\< 100GB). |
-| **1.5** | Restore vào máy chủ đích và đổi tên thành: <br>**`MISA.PersonalCustomerProfile.Business`** | `MISAID MSSQL 05` | Hoàn tất khởi tạo DB Business mới. |
-| **2** | **Migrate dữ liệu từ DB Login sang DB Business:**<br>Chuyển các bảng: `Totp`, `MigrateAccountLog`, `LinkActive`, `PasswordRegular`, `LoginMethod`, `UserTwofactorMethodLogs`, `ToolAdminActionLogs`, `UserInfo`. | Nguồn: `MISAID MSSQL 04`<br>Đích: `MISAID MSSQL 05` | Đảm bảo tính toàn vẹn dữ liệu giữa hai hệ thống. |
-| **3** | Chạy Script chuẩn hóa kiểu dữ liệu cho DB Business. | `MISAID MSSQL 05` | Script: `Personal_Customer_Profile_Business.sql` |
-| **4** | Chạy Script chuẩn hóa kiểu dữ liệu cho DB Token gốc. | `MSSQL 02` | Script: `Personal_Customer_Profile_Token.sql` |
-| **5** | Cập nhật cấu hình Ứng dụng (Connection String). | Hệ thống Application / Services | Đổi chuỗi kết nối đọc/ghi dữ liệu Business sang máy chủ `MSSQL 05` và test lại luồng. |
+| Mục tiêu | Chi tiết |
+|---|---|
+| **Tách dữ liệu Business** | Ra database riêng biệt |
+| **Database mới** | `MISA.PersonalCustomerProfile.Business` |
+| **Máy chủ triển khai** | `MISAID MSSQL 05` |
+| **⚠️ Lưu ý** | Cụm `MISAID MSSQL 05` chỉ có **100GB** disk — cần kiểm tra dung lượng dữ liệu Business trước khi migrate |
+
+---
+
+## C. Kế Hoạch Thực Hiện
+
+### Step 1 — Khởi tạo cấu trúc database `MISA.PersonalCustomerProfile.Business`
+
+| STT | Hành động | Chi tiết |
+|---|---|---|
+| 1.1 | Sinh SQL cấu trúc | Export script DDL từ database `Token` |
+| 1.2 | Tạo database rỗng | Tạo `MISA.PersonalCustomerProfile.Business` trên `MISAID MSSQL 05` |
+| 1.3 | Chạy script cấu trúc | Apply DDL script vào database mới |
+| 1.4 | Giữ lại các bảng cần thiết | Xem danh sách bên dưới |
+
+**Danh sách bảng giữ lại tại `MISA.PersonalCustomerProfile.Business`:**
+
+| STT | Tên bảng |
+|---|---|
+| 1 | `ClientConnect` |
+| 2 | `ContactInfo` |
+| 3 | `EducationInfo` |
+| 4 | `HighSchoolInfo` |
+| 5 | `LocationCountry` |
+| 7 | `SharedLicenseLog` |
+| 8 | `SuggestionInfo` |
+| 9 | `UpdateInfoLog` |
+| 10 | `UserUrl` |
+| 11 | `WorkInfo` |
+
+---
+
+### Step 2 — Cập nhật dữ liệu cho database Business
+
+| STT | Nguồn | Hành động | Danh sách bảng |
+|---|---|---|---|
+| 2.1 | `Token` → `Business` | Chuyển dữ liệu từ các bảng tương ứng | Các bảng đã giữ lại ở Step 1 |
+| 2.2 | `Login` → `Business` | Sinh DDL + Index script, sau đó chuyển dữ liệu | `Totp`, `MigrateAccountLog`, `LinkActive`, `PasswordRegular`, `LoginMethod`, `UserTwofactorMethodLogs`, `ToolAdminActionLogs`, `UserInfo` |
+
+---
+
+### Step 3 — Chuẩn hóa kiểu dữ liệu `MISA.PersonalCustomerProfile.Business`
+
+| Hành động | Chi tiết |
+|---|---|
+| Chạy script chuẩn hóa | Theo file đính kèm: `Personal_Customer_Profile_Business` |
+
+---
+
+### Step 4 — Chuẩn hóa kiểu dữ liệu `MISA.PersonalCustomerProfile.Token`
+
+| Hành động | Chi tiết |
+|---|---|
+| Chạy script chuẩn hóa | Theo file đính kèm: `Personal_Customer_Profile_Token` |
+
+---
+
+### Step 5 — Cập nhật Connection String
+
+| STT | Hành động | Chi tiết |
+|---|---|---|
+| 5.1 | Xác định các service đang dùng DB `Login` / `Token` | Rà soát config của tất cả ứng dụng liên quan |
+| 5.2 | Cập nhật connection string | Trỏ về `MISA.PersonalCustomerProfile.Business` trên `MISAID MSSQL 05` |
+| 5.3 | Kiểm tra &amp; smoke test | Verify kết nối + chạy test cơ bản sau khi cập nhật |
